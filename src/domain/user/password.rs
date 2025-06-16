@@ -163,7 +163,7 @@ impl Hash {
         }
     
         Ok(())
-    }    
+    }
 }
 
 impl From<&str> for Hash {
@@ -200,5 +200,35 @@ mod test {
         let cipher_text: Hash = Hash::from_password(key, &plain_text).unwrap();
         let result = cipher_text.verify_password(&plain_text);
         assert!(result.is_ok());
+    }
+
+    macro_rules! password_validation_test_cases {
+        (
+            $(
+                ($test_name: ident, $password: expr, $is_error: expr)
+            ),*
+        ) => {
+            $(
+                #[test]
+                fn $test_name() {
+                    let password_str: &str = $password;
+                    assert_eq!(
+                        $is_error, 
+                        Password::new(password_str).is_err(),
+                        "Password validation for '{}' did not match expectation (expected error: {})",
+                        password_str,
+                        $is_error
+                    )
+                }
+            )*
+        };
+    }
+
+    password_validation_test_cases! {
+        (too_short_password_test, "mypass", true),
+        (lowercase_only_password_test, "mypassword", true),
+        (lower_and_upper_case_only_password_test, "MypassworD", true),
+        (no_special_char_password_test, "MypassworD1234", true),
+        (good_password_test, "MypassworD1234!", false)
     }
 }

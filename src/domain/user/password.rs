@@ -153,6 +153,27 @@ impl Hash {
         }
     }
 
+    /// Verifies whether the given password matches the stored hash.
+    ///
+    /// This function checks if the internal `hash` field is not empty and then
+    /// uses the `sha512_crypt` algorithm to compare the password against the hash.
+    ///
+    /// # Arguments
+    ///
+    /// * `password` - A reference to a [`Password`] instance to be verified.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the password matches the hash.
+    /// * `Err(PasswordVerifyError)` if the hash is empty or the password does not match.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let password = Password::new("StrongPass123!").unwrap();
+    /// let hash = Hash::from_password("$6$somesalt$", &password).unwrap();
+    /// assert!(hash.verify_password(&password).is_ok());
+    /// ```
     pub fn verify_password(&self, password: &Password) -> Result<(), PasswordVerifyError> {
         if self.hash.is_empty() {
             return Err(PasswordVerifyError);

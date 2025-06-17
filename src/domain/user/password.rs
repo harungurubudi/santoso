@@ -2,6 +2,7 @@ use validator::{Validate, ValidationError};
 use serde::Deserialize;
 use std::fmt;
 use pwhash::sha512_crypt;
+use rand::{distr::Alphanumeric, Rng };
 
 /// Represents a user's password as a value object.
 ///
@@ -122,9 +123,30 @@ impl TryFrom<String> for Password {
     }
 }
 
-#[derive(Clone, PartialEq)]
-pub struct Hash {
-    hash: String,
+// =========================== Hash Object =========================== //  
+
+/// Generate a random salt string in the SHA512-Crypt format.
+///
+/// # Parameters
+/// - `length`: The length of the salt part (recommended 8–16).
+/// - `rounds`: Optional number of rounds. If `None`, default rounds will be used.
+///
+/// # Returns
+/// A salt string in format:
+/// - `$6$rounds=5000$mysalt` (if rounds specified)
+/// - `$6$mysalt` (if no rounds specified)
+///
+pub fn generate_sha512_crypt_salt(length: usize, rounds: Option<u32>) -> String {
+    let salt: String = rand::rng()
+        .sample_iter(&Alphanumeric)
+        .take(length)
+        .map(char::from)
+        .collect();
+
+    match rounds {
+        Some(r) => format!("$6$rounds={}${}", r, salt),
+        None => format!("$6${}", salt),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -143,6 +165,12 @@ impl fmt::Display for PasswordVerifyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Invalid password")
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(from = "String")]
+pub struct Hash {
+    hash: String,
 }
 
 impl Hash {
@@ -187,42 +215,26 @@ impl Hash {
     }
 }
 
-impl From<&str> for Hash {
-    fn from(hash: &str) -> Self {
+// Convert from String object
+impl From<String> for Hash {
+    fn from(value: String) -> Self {
         Hash {
-            hash: hash.to_string(),
+            hash: value,
         }
     }
 }
 
+// Convert from &str string literal
+impl From<&str> for Hash {
+    fn from(value: &str) -> Self {
+        Hash::from(value.to_string())
+    }
+}
 
 #[cfg(test)]
 mod test {
     use super::*;
-    
-    #[test]
-    fn test_password_verify_with_empty_hash() {
-        let plain_text: Password = Password::new("Asolole123!").unwrap();
-        let cipher_text: Hash = Hash::from("");
-        assert!(cipher_text.verify_password(&plain_text).is_err());
-    }
-
-    #[test]
-    fn test_password_verify_with_invalid_password() {
-        let plain_text: Password = Password::new("Asolole123!").unwrap();
-        let cipher_text: Hash = Hash::from("DifferentPassword123!");
-        assert!(cipher_text.verify_password(&plain_text).is_err());
-    }
-
-    #[test]
-    fn test_password_verify_with_valid_password() {
-        let plain_text: Password = Password::new("Asolole123!").unwrap();
-        let key: &str ="$6$G/gkPn17kHYo0gTF$xhDFU0QYExdMH2ghOWKrrVtu1BuTpNMSJURCXk43.EYekmK8iwV6RNqftUUC8mqDel1J7m3JEbUkbu4YyqSyv/";
-        let cipher_text: Hash = Hash::from_password(key, &plain_text).unwrap();
-        let result = cipher_text.verify_password(&plain_text);
-        assert!(result.is_ok());
-    }
-
+    // =========================== Password Initialization Test =========================== //  
     macro_rules! password_validation_test_cases {
         (
             $(
@@ -251,5 +263,30 @@ mod test {
         (lower_and_upper_case_only_password_test, "MypassworD", true),
         (no_special_char_password_test, "MypassworD1234", true),
         (good_password_test, "MypassworD1234!", false)
+    }
+
+    
+    // =========================== Hash Object Test =========================== //  
+    #[test]
+    fn test_password_verify_with_empty_hash() {
+        let plain_text: Password = Password::new("Asolole123!").unwrap();
+        let cipher_text: Hash = Hash::from("");
+        assert!(cipher_text.verify_password(&plain_text).is_err());
+    }
+
+    #[test]
+    fn test_password_verify_with_invalid_password() {
+        let plain_text: Password = Password::new("Asolole123!").unwrap();
+        let cipher_text: Hash = Hash::from("DifferentPassword123!");
+        assert!(cipher_text.verify_password(&plain_text).is_err());
+    }
+
+    #[test]
+    fn test_password_verify_with_valid_password() {
+        let plain_text: Password = Password::new("Asolole123!").unwrap();
+        let key: &str = &generate_sha512_crypt_salt(100, Some(16));
+        let cipher_text: Hash = Hash::from_password(key, &plain_text).unwrap();
+        let result = cipher_text.verify_password(&plain_text);
+        assert!(result.is_ok());
     }
 }
